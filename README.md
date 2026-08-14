@@ -33,7 +33,22 @@ pip install -r requirements.txt
 API_URL=http://localhost:8000 streamlit run streamlit_app.py
 ```
 
+## Running with Docker
+
+```bash
+docker compose up --build
+```
+
+By default this mounts `../Dissertation/output/distilbert/model-best` (a sibling directory) into
+the backend container read-only. Override with `HOST_MODEL_PATH=/path/to/model-best docker
+compose up --build` if your checkout is laid out differently. Once the model is published to the
+Hugging Face Hub, the backend service can switch to `HF_MODEL_REPO` instead of the volume mount.
+
+- Frontend: http://localhost:8501
+- Backend: http://localhost:8000
+
 ## API
 
 - `GET /health` — `{"status": "ok", "model_loaded": true}`
+- `GET /info` — model/architecture metadata and benchmark metrics
 - `POST /predict` — body `{"text": "..."}` → `{"label": "Hateful" | "Not-Hateful", "hateful_score": float, "not_hateful_score": float}`

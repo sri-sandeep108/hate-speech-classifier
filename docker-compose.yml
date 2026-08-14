@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Point at a local model dir for now; switch to HF_MODEL_REPO once the
+      # model is published to the Hugging Face Hub.
+      MODEL_PATH: /models/distilbert
+    volumes:
+      - ${HOST_MODEL_PATH:-../Dissertation/output/distilbert/model-best}:/models/distilbert:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
