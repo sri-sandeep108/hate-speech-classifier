@@ -39,10 +39,8 @@ API_URL=http://localhost:8000 streamlit run streamlit_app.py
 docker compose up --build
 ```
 
-By default this mounts `../Dissertation/output/distilbert/model-best` (a sibling directory) into
-the backend container read-only. Override with `HOST_MODEL_PATH=/path/to/model-best docker
-compose up --build` if your checkout is laid out differently. Once the model is published to the
-Hugging Face Hub, the backend service can switch to `HF_MODEL_REPO` instead of the volume mount.
+The backend downloads the trained model from the Hugging Face Hub (`HF_MODEL_REPO` in
+`docker-compose.yml`) on startup — no local model checkout needed.
 
 - Frontend: http://localhost:8501
 - Backend: http://localhost:8000

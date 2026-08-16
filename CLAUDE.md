@@ -12,8 +12,8 @@ DevOps layers on top are the actual point of the project and are being built one
 this order:
 
 1. ~~App (FastAPI + Streamlit)~~ — done
-2. Containerization (Docker) — in progress, see "Current state" below
-3. Kubernetes
+2. ~~Containerization (Docker)~~ — done, see "Current state" below
+3. Kubernetes — up next
 4. Terraform (cloud deploy)
 5. GitHub Actions (CI/CD)
 6. Prometheus + Grafana (monitoring)
@@ -30,10 +30,12 @@ meant to be a discrete, explainable step for interviews.
   over a single combined FastAPI+Jinja2 app because two independently deployable services gives a
   more realistic multi-service story for the later k8s/networking phases.
 - **Model hosting**: the trained model (`output/distilbert/model-best`, ~265MB) is deliberately
-  *not* committed to this repo. Plan is to publish it to the Hugging Face Hub (`scripts/upload_model_to_hf.py`
-  is ready for this — needs `huggingface-cli login` first, not yet done) and have the backend pull
-  it via `HF_MODEL_REPO` at container build/startup. Until that happens, local dev uses `MODEL_PATH`
-  pointing straight at the dissertation repo's model directory.
+  *not* committed to this repo. Published to the Hugging Face Hub as
+  `thenewguyhere/hate-speech-distilbert` (public) via `scripts/upload_model_to_hf.py`, done
+  2026-08-16. Containers (`docker-compose.yml`) pull it via `HF_MODEL_REPO` at startup — no bind
+  mount, no dependency on the dissertation repo being checked out locally. `MODEL_PATH` still
+  exists as a local-dev override (points straight at a `model-best` dir on disk) but is no longer
+  required for anything, including Docker.
 
 ## Architecture
 
@@ -49,28 +51,34 @@ meant to be a discrete, explainable step for interviews.
   `st.container(border=True)` — **do not** try to wrap multiple `st.*` calls in hand-written
   `<div>...</div>` markdown spanning separate `st.markdown()` calls, it doesn't nest in the real
   DOM and renders as broken empty boxes (hit this once already).
-- `docker-compose.yml` — local multi-container orchestration. Backend gets the model via a
-  read-only bind mount of `${HOST_MODEL_PATH:-../Dissertation/output/distilbert/model-best}`
-  (i.e. assumes the dissertation repo is a sibling directory by default).
+- `docker-compose.yml` — local multi-container orchestration. Backend pulls the model from the
+  Hugging Face Hub at startup via `HF_MODEL_REPO=thenewguyhere/hate-speech-distilbert`.
 
 ## Current state / where to pick up
 
 - App works end-to-end locally (tested via curl + browser): backend loads the real model and
   classifies correctly, frontend renders correctly and calls the API successfully.
-- Committed and pushed to GitHub, `main` branch, 2 commits so far (app layer, then Dockerfiles/compose).
-- **Docker layer is written but untested.** `backend/Dockerfile` and `frontend/Dockerfile` are
-  multi-stage builds (CPU-only torch for the backend specifically, to avoid pulling CUDA wheels;
-  non-root `appuser` in both). `docker compose config` validates fine. But `docker compose build`
-  fails locally: `permission denied while trying to connect to the docker API at
-  unix:///var/run/docker.sock`. There's a real Docker daemon on this WSL2 box (not routed through
-  Windows Docker Desktop — `/var/run/docker.sock` exists, owned by root), but the `sandy` user
-  isn't in the `docker` group. **Next step**: user needs to run `sudo usermod -aG docker $USER`
-  themselves (needs an interactive password, can't be run from here) and start a fresh shell
-  (group membership changes don't apply to already-open shells), then retry
-  `docker compose up --build`.
-- Once containers build successfully: test both images run correctly, then decide whether to
-  finally do the Hugging Face Hub upload (needed for a container that doesn't depend on a bind
-  mount into the sibling dissertation repo) before moving on to Kubernetes.
+- Committed and pushed to GitHub, `main` branch, 3 commits so far (app layer, Dockerfiles/compose,
+  CLAUDE.md).
+- **Working from a new machine as of 2026-08-16** (Linux/aarch64, not the original WSL2 box).
+  `python3.12-venv` wasn't preinstalled — needed `sudo apt install python3.12-venv` once. Both
+  service venvs recreated with `uv venv` + `uv pip install` (`uv` is available on this box and is
+  now the preferred way to set these up — much faster than stdlib `venv`/`pip`). Note: on this
+  machine the dissertation project checkout lives at `~/Dissertation`, *not* `~/code/Dissertation`
+  like the CLAUDE.md/script default assumes — pass the model path explicitly if re-running
+  `scripts/upload_model_to_hf.py` here.
+- **Docker layer: done.** Both Dockerfiles build and run cleanly on this machine (docker-group
+  permission issue from the old WSL2 box doesn't apply here — `sandy` was already in the `docker`
+  group). Full `docker compose up` verified end-to-end: backend pulls the model from
+  `HF_MODEL_REPO` on startup, `/health` reports `model_loaded: true`, `/predict` returns correct
+  classifications, frontend serves and calls the backend successfully.
+- **Hugging Face Hub upload done** (2026-08-16) — see "Model hosting" above. This removed the last
+  reason `docker-compose.yml` needed a bind mount into a sibling dissertation checkout, so that's
+  been deleted from the compose file; `HOST_MODEL_PATH` no longer exists as a variable.
+- **Next step**: containerization phase is complete. Move on to Kubernetes — manifests for
+  backend/frontend Deployments + Services, likely a ConfigMap for `HF_MODEL_REPO`/`API_URL`, and
+  probably a local cluster (kind/minikube) to test against before Terraform brings in real cloud
+  infra.
 
 ## Commands
 
@@ -79,6 +87,6 @@ meant to be a discrete, explainable step for interviews.
 MODEL_PATH=/path/to/model-best uvicorn app.main:app --reload --port 8000   # from backend/
 API_URL=http://localhost:8000 streamlit run streamlit_app.py               # from frontend/
 
-# Docker (once the docker-group permission issue above is resolved)
+# Docker
 docker compose up --build
 ```
