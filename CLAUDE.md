@@ -14,8 +14,8 @@ this order:
 1. ~~App (FastAPI + Streamlit)~~ — done
 2. ~~Containerization (Docker)~~ — done, see "Current state" below
 3. ~~Kubernetes~~ — done, see "Current state" below
-4. Prometheus + Grafana (monitoring, on the local k8s cluster) — up next
-5. Terraform (cloud deploy, AWS/EKS)
+4. ~~Prometheus + Grafana~~ — done, see "Current state" below
+5. Terraform (cloud deploy, AWS/EKS) — up next
 6. GitHub Actions (CI/CD)
 
 Work through these one layer at a time; don't jump ahead without checking in, since each layer is
@@ -73,6 +73,33 @@ earlier risks doing the work twice (once for local kind, once for the eventual E
   `/_stcore/health`. Images are built locally (`hate-speech-backend:local`,
   `hate-speech-frontend:local`) and loaded into the `kind` cluster with `kind load docker-image`
   — no registry involved yet, that arrives with the GitHub Actions phase.
+- `k8s/monitoring/` — Prometheus + Grafana, deployed via the `prometheus-community/kube-prometheus-stack`
+  Helm chart (not part of the `kustomize` app manifests — installed separately with `helm`) into a
+  `monitoring` namespace. `values.yaml` is a **local-tuned override**, not chart defaults: disables
+  Alertmanager (no alert receivers in scope), trims Prometheus/Grafana resource requests to fit
+  this box, sets `serviceMonitorSelectorNilUsesHelmValues: false` so it picks up ServiceMonitors
+  cluster-wide, and overrides Grafana's liveness/readiness probe timing (Grafana 13's startup is
+  slow enough under CPU contention on a single-node kind cluster that the chart's default probes
+  killed it mid-boot in a restart loop — see "Current state" for how that was diagnosed).
+  `dashboards/backend.json` is the dashboard source of truth, turned into a `ConfigMap` by
+  `kustomization.yaml`'s `configMapGenerator` (labeled `grafana_dashboard: "1"`, which is the
+  chart's dashboard-sidecar convention for auto-import — it's applied as part of `kubectl apply -k
+  k8s/`, same as the app manifests, even though the Helm chart that reads it is separate).
+- `k8s/backend-servicemonitor.yaml` — a `ServiceMonitor` telling Prometheus to scrape
+  `backend`'s `/metrics`. **Gotcha hit here**: a `ServiceMonitor`'s selector matches the target
+  *Service's* `metadata.labels`, not its `spec.selector` (which is what routes traffic to pods) —
+  the `backend` Service in `k8s/backend.yaml` needs its own `app: backend` label for this to work;
+  easy to forget since nothing else in the app manifests required the Service itself to be
+  labeled.
+- `backend/app/main.py` / `backend/app/model.py` — `/metrics` is exposed via
+  `prometheus-fastapi-instrumentator` (`Instrumentator().instrument(app).expose(app)` in
+  `main.py`), which gives HTTP-level metrics (`http_requests_total`,
+  `http_request_duration_seconds`) for free. Four hand-written `prometheus_client` metrics live in
+  `model.py`'s `predict()`: `predict_classifications_total{label}` (Hateful vs Not-Hateful split),
+  `predict_hateful_score` (confidence distribution), `predict_inference_seconds` (model-only
+  latency, isolated from HTTP overhead), `predict_input_text_length_chars` (input-size
+  distribution). They register on the same default registry the instrumentator exposes, so no
+  extra wiring was needed to get them onto `/metrics`.
 
 ## Current state / where to pick up
 
@@ -104,9 +131,27 @@ earlier risks doing the work twice (once for local kind, once for the eventual E
   Service DNS. One real bug hit and fixed: initial backend memory limit (1Gi) was too low and got
   `OOMKilled` loading the DistilBERT pipeline — raised to `requests: 1Gi` / `limits: 2Gi` in
   `k8s/backend.yaml`, and it now starts clean.
-- **Next step**: Prometheus + Grafana on this same local `kind` cluster (`kube-prometheus-stack`
-  Helm chart), including instrumenting `backend/app/main.py` with a `/metrics` endpoint since none
-  exists yet. Then Terraform brings in real cloud infra (AWS/EKS), then GitHub Actions last.
+- **Prometheus + Grafana layer: done** (2026-08-16). `helm install monitoring
+  prometheus-community/kube-prometheus-stack -n monitoring --create-namespace -f
+  k8s/monitoring/values.yaml`. Grafana reachable at `localhost:3000` (NodePort 30300 → kind
+  `extraPortMappings`, same pattern as the frontend); admin password via `kubectl get secret -n
+  monitoring monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d`. Verified
+  end-to-end: sent varied `/predict` traffic, confirmed all four custom metrics plus the
+  instrumentator's HTTP metrics appear on `/metrics`, confirmed the `backend` target shows `up` on
+  Prometheus, and confirmed every PromQL query behind the seven dashboard panels
+  (`k8s/monitoring/dashboards/backend.json`) returns non-empty data via Grafana's datasource proxy.
+  Two real bugs hit and fixed along the way (both now documented next to the relevant files in
+  "Architecture" above): the backend memory limit needed another bump (2Gi → 3Gi) once it was
+  sharing the node with the monitoring stack; the backend `Service` needed an explicit `app:
+  backend` label for the `ServiceMonitor` to find it (selector matches Service labels, not the
+  Service's pod selector). Also had to raise Grafana's liveness/readiness probe
+  `initialDelaySeconds`/`failureThreshold` — chart defaults were too tight for Grafana 13's startup
+  time under CPU contention on this single-node cluster and it was getting killed mid-boot.
+  `kind-config.yaml` gained a second `extraPortMappings` entry for Grafana, which meant recreating
+  the cluster (those only apply at cluster creation) — app images had to be reloaded with `kind
+  load docker-image` afterward.
+- **Next step**: Terraform (AWS/EKS) to bring in real cloud infra, then GitHub Actions last for
+  CI/CD.
 
 ## Commands
 
@@ -127,4 +172,12 @@ kubectl apply -k k8s/
 kubectl get pods                 # wait for both to be 1/1 Running
 # frontend: http://localhost:8501
 # backend:  kubectl port-forward svc/backend 18000:8000
+
+# Monitoring (install once per cluster, before `kubectl apply -k k8s/` — the ServiceMonitor CRD
+# needs to already exist)
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace -f k8s/monitoring/values.yaml --wait
+kubectl get secret -n monitoring monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d
+# grafana: http://localhost:3000 (user: admin)
 ```

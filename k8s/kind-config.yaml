@@ -8,3 +8,7 @@ nodes:
       - containerPort: 30501
         hostPort: 8501
         protocol: TCP
+      # Grafana reachable at localhost:3000 without kubectl port-forward.
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP

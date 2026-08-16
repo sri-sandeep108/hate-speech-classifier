@@ -5,3 +5,13 @@ resources:
   - configmap.yaml
   - backend.yaml
   - frontend.yaml
+  - backend-servicemonitor.yaml
+
+configMapGenerator:
+  - name: backend-dashboard
+    files:
+      - monitoring/dashboards/backend.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

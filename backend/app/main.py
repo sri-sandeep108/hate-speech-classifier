@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.model import get_nlp, predict
 from app.model_info import MODEL_INFO
@@ -9,6 +10,8 @@ app = FastAPI(
     description="Serves a spaCy + DistilBERT text classification pipeline.",
     version="0.1.0",
 )
+
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/health", response_model=HealthResponse)
