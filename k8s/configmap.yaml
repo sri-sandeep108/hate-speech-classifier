@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hate-speech-classifier-config
+data:
+  HF_MODEL_REPO: thenewguyhere/hate-speech-distilbert
+  API_URL: http://backend:8000

@@ -1,0 +1,10 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: hate-speech-classifier
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Frontend reachable at localhost:8501 without kubectl port-forward.
+      - containerPort: 30501
+        hostPort: 8501
+        protocol: TCP
