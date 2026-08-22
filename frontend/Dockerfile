@@ -19,7 +19,9 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY streamlit_app.py .
+COPY Dissertation.pdf .
 COPY .streamlit ./.streamlit
+
 
 USER appuser
 EXPOSE 8501
