@@ -1,28 +1,34 @@
-# syntax=docker/dockerfile:1
-FROM python:3.11-slim AS builder
+# ==========================================
+# Stage 1: Build React + Vite SPA
+# ==========================================
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy dependency definitions
+COPY package*.json ./
+RUN npm ci
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Copy source code and dissertation PDF
+COPY . .
 
-FROM python:3.11-slim
+# Build production assets into /app/dist
+RUN npm run build
 
-RUN useradd --create-home --uid 1000 appuser
-WORKDIR /app
+# ==========================================
+# Stage 2: Production Nginx Runtime
+# ==========================================
+FROM nginx:alpine
 
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Remove default configuration
+RUN rm -rf /etc/nginx/conf.d/default.conf
 
-COPY streamlit_app.py .
-COPY Dissertation.pdf .
-COPY .streamlit ./.streamlit
+# Copy custom Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Copy compiled SPA static assets
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-USER appuser
-EXPOSE 8501
-CMD ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

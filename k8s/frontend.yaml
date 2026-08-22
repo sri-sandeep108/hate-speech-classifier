@@ -19,27 +19,26 @@ spec:
           image: hate-speech-frontend:local
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8501
-          envFrom:
-            - configMapRef:
-                name: hate-speech-classifier-config
+            - containerPort: 80
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m
+              memory: 64Mi
             limits:
-              cpu: 500m
-              memory: 256Mi
+              cpu: 200m
+              memory: 128Mi
           readinessProbe:
             httpGet:
-              path: /_stcore/health
-              port: 8501
+              path: /
+              port: 80
+            initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /_stcore/health
-              port: 8501
+              path: /
+              port: 80
+            initialDelaySeconds: 10
             periodSeconds: 20
             failureThreshold: 3
 ---
@@ -56,5 +55,4 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 8501
-
+      targetPort: 80

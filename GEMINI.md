@@ -28,7 +28,7 @@ The DevOps layers are constructed incrementally in discrete, explainable steps:
 ## 2. Key Architecture & Design Decisions (Do Not Re-litigate)
 
 - **Repository Separation**: Standalone repo (`sri-sandeep108/hate-speech-classifier`) to decouple production deployment code from dissertation research notebooks.
-- **Python-Only Architecture**: FastAPI backend (`backend/`) + Streamlit frontend (`frontend/`) communicating over HTTP. Avoids frontend JavaScript frameworks while preserving realistic multi-service networking.
+- **Microservice Architecture**: FastAPI backend (`backend/`) + Modern React SPA frontend (`frontend/` built with Vite, TypeScript, Tailwind CSS, and served via lightweight Nginx) communicating over HTTP.
 - **Model Distribution (Hugging Face Hub)**:
   - The trained DistilBERT spaCy pipeline (~265MB) is hosted publicly at [`thenewguyhere/hate-speech-distilbert`](https://huggingface.co/thenewguyhere/hate-speech-distilbert).
   - Runtime containers fetch the model dynamically via `HF_MODEL_REPO` at startup (no local bind mount or weights in git).
@@ -52,16 +52,21 @@ hate-speech-classifier/
 │   ├── Dockerfile             # Multi-stage/optimized backend image (runs uvicorn on port 8000)
 │   └── requirements.txt       # spaCy, spacy-transformers, torch, fastapi, uvicorn, prometheus-fastapi-instrumentator
 ├── frontend/
-│   ├── .streamlit/config.toml # Dark theme configuration
-│   ├── streamlit_app.py       # Streamlit UI with input form, confidence gauges, benchmark metadata
-│   ├── Dockerfile             # Frontend image (runs streamlit on port 8501)
-│   └── requirements.txt       # streamlit, requests
+│   ├── src/
+│   │   ├── components/        # Navbar, Hero, InferenceStudio, DissertationSection, ArchitectureSection, AboutSection, Footer
+│   │   ├── data/              # Dissertation research data, 5-model benchmark matrix, 6 DevOps layers
+│   │   ├── App.tsx            # Main application layout
+│   │   └── main.tsx           # React entrypoint
+│   ├── nginx.conf             # Production Nginx reverse proxy and SPA routing
+│   ├── Dockerfile             # Multi-stage build (node:22-alpine -> nginx:alpine)
+│   ├── tailwind.config.js     # Catppuccin Mocha theme configuration
+│   └── package.json           # React 18, Vite, Lucide Icons, Tailwind CSS
 ├── k8s/
-│   ├── backend.yaml           # Deployment + ClusterIP Service + Startup/Liveness/Readiness probes + 3Gi memory limits
-│   ├── frontend.yaml          # Deployment + NodePort 30501 Service + Streamlit health probes
+│   ├── backend.yaml           # Deployment + ClusterIP Service + Startup/Liveness/Readiness probes + 4Gi memory limits
+│   ├── frontend.yaml          # Deployment + LoadBalancer Service on port 80 + Nginx health probes
 │   ├── configmap.yaml         # Environment configuration (`HF_MODEL_REPO`, `API_URL`)
 │   ├── backend-servicemonitor.yaml # Prometheus Operator CRD to scrape backend /metrics
-│   ├── kind-config.yaml       # kind cluster config with extraPortMappings for 8501 (frontend) & 3000 (Grafana)
+│   ├── kind-config.yaml       # kind cluster config with extraPortMappings
 │   ├── kustomization.yaml     # Kustomize manifest bundle + Grafana dashboard ConfigMap generator
 │   └── monitoring/
 │       ├── values.yaml        # Tuned Helm values for kube-prometheus-stack (Alertmanager disabled, probe tweaks)

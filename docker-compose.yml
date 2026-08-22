@@ -17,9 +17,8 @@ services:
     build:
       context: ./frontend
     ports:
-      - "8501:8501"
-    environment:
-      API_URL: http://backend:8000
+      - "5173:80"
+      - "8501:80"
     depends_on:
       backend:
         condition: service_healthy

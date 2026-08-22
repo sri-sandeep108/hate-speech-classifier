@@ -7,6 +7,14 @@ venv/
 .pytest_cache/
 .DS_Store
 
+# Node & Frontend
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Terraform
 .terraform/
 *.tfstate
@@ -19,4 +27,3 @@ override.tf.json
 *_override.tf.json
 terraform.tfvars
 !terraform.tfvars.example
-

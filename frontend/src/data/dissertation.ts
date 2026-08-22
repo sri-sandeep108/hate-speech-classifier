@@ -1,0 +1,143 @@
+import { BenchmarkComparison, PresetExample } from '../types';
+
+export const AUTHOR_DETAILS = {
+  name: "Sri Sandeep Sakthivel",
+  studentId: "20065749",
+  degree: "MSc in Data Analytics",
+  dissertationTitle: "A Comparative analysis of Transformer Models and Static Word Embedding Model for Hate Speech Detection",
+  github: "https://github.com/sri-sandeep108/hate-speech-classifier",
+  huggingFace: "https://huggingface.co/thenewguyhere/hate-speech-distilbert",
+  pdfPath: "/Dissertation.pdf",
+  pdfSize: "4.1 MB",
+};
+
+export const PRESET_EXAMPLES: PresetExample[] = [
+  {
+    id: "ex-1",
+    category: "Positive / Social",
+    label: "Civil & Friendly",
+    tag: "Benign",
+    text: "What a beautiful morning! I love spending time with friends and family in the community park.",
+    icon: "Sparkles",
+  },
+  {
+    id: "ex-2",
+    category: "Political Discourse",
+    label: "Policy Debate",
+    tag: "Debate",
+    text: "I strongly disagree with the council's new fiscal budget allocations, but I respect the voting process.",
+    icon: "Scale",
+  },
+  {
+    id: "ex-3",
+    category: "Community Event",
+    label: "Workshop Notice",
+    tag: "Benign",
+    text: "The local open source workshop this Saturday was incredibly informative and helpful for all newcomers.",
+    icon: "Users",
+  },
+  {
+    id: "ex-4",
+    category: "Xenophobic / Toxic",
+    label: "Hostile Speech",
+    tag: "Hostile",
+    text: "Get out of our country, people like you ruin everything and do not belong in our society.",
+    icon: "AlertTriangle",
+  },
+  {
+    id: "ex-5",
+    category: "Extreme Violence",
+    label: "Severe Violation",
+    tag: "Severe",
+    text: "You are subhuman filth and your entire religious group should be violently eradicated.",
+    icon: "ShieldAlert",
+  },
+];
+
+export const BENCHMARK_DATA: BenchmarkComparison[] = [
+  {
+    name: "DistilBERT (Operationalized)",
+    type: "Transformer",
+    baseModel: "distilbert-base-uncased",
+    params: "~66.3M",
+    size: "~265 MB",
+    macroF1: 0.8109,
+    macroAUC: 0.9277,
+    hatefulF1: 0.6918,
+    safeF1: 0.9301,
+    speedMultiplier: "1.17x faster (Optimal)",
+    highlight: true,
+    verdict: "Highest Macro F1 & minority class recall. 40% smaller footprint and 17% faster than BERT-Base.",
+  },
+  {
+    name: "RoBERTa Base",
+    type: "Transformer",
+    baseModel: "roberta-base",
+    params: "~125M",
+    size: "~500 MB",
+    macroF1: 0.8142,
+    macroAUC: 0.9320,
+    hatefulF1: 0.6945,
+    safeF1: 0.9338,
+    speedMultiplier: "0.85x",
+    verdict: "Marginal +0.3% F1 gain over DistilBERT at the cost of 2x memory footprint and higher inference latency.",
+  },
+  {
+    name: "BERT Base",
+    type: "Transformer",
+    baseModel: "bert-base-uncased",
+    params: "~110M",
+    size: "~440 MB",
+    macroF1: 0.8034,
+    macroAUC: 0.9192,
+    hatefulF1: 0.6780,
+    safeF1: 0.9288,
+    speedMultiplier: "1.00x (Baseline)",
+    verdict: "Standard bidirectional transformer baseline. Outperformed in efficiency and recall by DistilBERT.",
+  },
+  {
+    name: "ELECTRA Base",
+    type: "Discriminator",
+    baseModel: "google/electra-base",
+    params: "~110M",
+    size: "~440 MB",
+    macroF1: 0.7981,
+    macroAUC: 0.9154,
+    hatefulF1: 0.6690,
+    safeF1: 0.9272,
+    speedMultiplier: "0.98x",
+    verdict: "Trained via token replacement discrimination. Exhibited lower sensitivity on subtle hate phrasing.",
+  },
+  {
+    name: "Static GloVe 300d",
+    type: "Static Vectors",
+    baseModel: "glove.6B.300d + Linear",
+    params: "~2.2M",
+    size: "~12 MB",
+    macroF1: 0.7120,
+    macroAUC: 0.8410,
+    hatefulF1: 0.5420,
+    safeF1: 0.8820,
+    speedMultiplier: "4.50x",
+    verdict: "Extremely fast bag-of-words baseline, but failed on polysemy, syntactic negation, and subtle hate context.",
+  },
+];
+
+export const DISSERTATION_KEY_POINTS = [
+  {
+    title: "The Performance-Efficiency Paradox",
+    description: "The research demonstrated that sheer parameter scale does not guarantee proportional gains in hate speech classification. DistilBERT (~66M parameters) matched or exceeded larger architectures (110M+ params) in minority class recall while consuming ~40% less memory.",
+  },
+  {
+    title: "Mitigating Human Moderator Trauma",
+    description: "Human content reviewers on social media face severe psychological risks, including secondary traumatic stress and burnout. Intelligent high-recall automated classification filters severe violations automatically, drastically reducing the toxic volume humans must inspect.",
+  },
+  {
+    title: "The 'Scunthorpe Problem' & Linguistic Context",
+    description: "Static keyword filters fail miserably by flagging benign words containing prohibited substrings. Transformers understand bi-directional context, differentiating hostile attacks from civil discussions or reclaimed in-group vocabulary.",
+  },
+  {
+    title: "Human-in-the-Loop (HITL) Necessity",
+    description: "Due to precision ceilings on ambiguous or adversarial phrasing, the dissertation concludes that fully autonomous moderation is unsafe. DistilBERT serves as a high-throughput triage engine, routing borderline scores (e.g. 0.40–0.70) to human reviewers.",
+  },
+];
