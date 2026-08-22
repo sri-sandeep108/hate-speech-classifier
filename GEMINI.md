@@ -11,8 +11,8 @@ This is a portfolio DevOps/MLOps project targeting cloud and DevOps engineering 
 ### Layer-by-Layer Roadmap
 The DevOps layers are constructed incrementally in discrete, explainable steps:
 
-1. [x] **Layer 1: App (FastAPI + Streamlit)** — Fully working Python-only multi-service app.
-2. [x] **Layer 2: Containerization (Docker & Compose)** — Multi-container setup with Hugging Face Hub model download.
+1. [x] **Layer 1: App (FastAPI + React 18 SPA)** — Modern microservice architecture with Catppuccin Mocha UI.
+2. [x] **Layer 2: Containerization (Docker & Compose)** — Multi-stage builds (FastAPI backend + Nginx SPA) with Hugging Face Hub model download.
 3. [x] **Layer 3: Kubernetes (Local `kind` manifests)** — Deployments, Services, ConfigMaps, Probes, Resource constraints.
 4. [x] **Layer 4: Observability (Prometheus + Grafana)** — `kube-prometheus-stack`, custom FastAPI & spaCy metrics, auto-imported Grafana dashboard.
 5. [x] **Layer 5: Terraform (AWS / EKS)** — Complete VPC, EKS cluster (v1.31), Managed Node Groups, IAM + OIDC, ECR repositories with lifecycle policies.
@@ -83,7 +83,10 @@ hate-speech-classifier/
 │   ├── outputs.tf             # Cluster endpoint, ECR URLs, and kubectl configure helper
 │   ├── terraform.tfvars.example # Example variable definitions
 │   └── README.md              # Infrastructure usage, deployment, ECR push, and destroy guide
+├── assets/
+│   └── screenshots/           # High-resolution screenshots of UI, Grafana dashboard, & architecture
 ├── scripts/
+│   ├── generate_traffic.py    # Multi-threaded load generator to populate Prometheus & Grafana metrics
 │   └── upload_model_to_hf.py  # Utility script to push spaCy model artifacts to HF Hub
 ├── docker-compose.yml         # Local Docker Compose orchestrator
 ├── CLAUDE.md                  # Historical context & previous agent logs
@@ -110,19 +113,18 @@ Backend exposes Prometheus metrics at `GET /metrics`:
 
 1. **Backend Memory Requirements (OOMKilled)**:
    - PyTorch + DistilBERT transformer pipeline needs substantial headroom at startup.
-   - Set resources in `k8s/backend.yaml` to `requests: 1Gi`, `limits: 3Gi` (2Gi was prone to OOM when running alongside the Prometheus monitoring stack).
+   - Set resources in `k8s/backend.yaml` to `requests: 1Gi`, `limits: 4Gi` (2Gi was prone to OOM when running alongside the Prometheus monitoring stack).
 2. **ServiceMonitor Selector Matching**:
    - `ServiceMonitor` matches the Kubernetes `Service`'s `metadata.labels`, **not** its pod `spec.selector`.
    - The backend `Service` in `k8s/backend.yaml` **must** carry `labels: { app: backend }`.
 3. **Grafana Startup Probe Timeouts**:
    - Under CPU contention on a single-node local cluster, Grafana 13 boots slowly.
    - `k8s/monitoring/values.yaml` overrides `livenessProbe` and `readinessProbe` with increased `initialDelaySeconds` and `failureThreshold`.
-4. **Streamlit UI Layout**:
-   - Use `st.container(border=True)` for cards.
-   - Do **not** wrap multiple Streamlit widgets in custom multi-block HTML markdown tags (`<div>...</div>`), as Streamlit sanitization breaks the DOM structure.
+4. **React SPA Routing & Asset Caching**:
+   - `frontend/nginx.conf` handles client-side SPA routing (`try_files $uri /index.html`), static caching, and reverse-proxies `/predict`, `/health`, and `/info`.
 5. **Local Environment Notes (Linux / aarch64)**:
-   - Tooling package manager: `uv` is preferred for virtual environments (`uv venv`, `uv pip install`).
-   - If running locally on WSL 2, ensure Docker Desktop WSL 2 integration is enabled when issuing Docker/Kubernetes commands.
+   - Tooling package manager: `uv` is preferred for virtual environments (`uv venv`, `uv pip install`), and Homebrew Node.js for Vite.
+   - Cloud cost management: Destroy EKS and NAT Gateways with `terraform destroy -auto-approve` when done testing.
 
 ---
 
@@ -134,12 +136,17 @@ Backend exposes Prometheus metrics at `GET /metrics`:
 HF_MODEL_REPO=thenewguyhere/hate-speech-distilbert uvicorn app.main:app --reload --port 8000
 
 # Frontend (from frontend/ directory)
-API_URL=http://localhost:8000 streamlit run streamlit_app.py
+VITE_API_URL=http://localhost:8000 npm run dev
 ```
 
 ### Docker Compose
 ```bash
 docker compose up --build
+```
+
+### Traffic & Telemetry Generation
+```bash
+./scripts/generate_traffic.py --url "http://localhost:8000" --requests 100 --concurrency 4
 ```
 
 ### Kubernetes (`kind`) & Monitoring
@@ -161,7 +168,7 @@ helm install monitoring prometheus-community/kube-prometheus-stack \
 kubectl apply -k k8s/
 
 # 5. Access Services
-# Frontend: http://localhost:8501
+# Frontend: http://localhost:80 / http://localhost:5173
 # Grafana:  http://localhost:3000 (User: admin, Password retrieved via:)
 kubectl get secret -n monitoring monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d && echo
 ```
@@ -176,6 +183,9 @@ terraform apply
 # Authenticate kubectl to provisioned EKS
 aws eks update-kubeconfig --region us-east-1 --name hate-speech-classifier-eks
 kubectl get nodes
+
+# Clean Teardown
+terraform destroy -auto-approve
 ```
 
 ---
@@ -183,12 +193,10 @@ kubectl get nodes
 ## 7. CI/CD Pipeline (GitHub Actions)
 
 The repository includes a production-grade CI/CD pipeline in `.github/workflows/ci-cd.yml`:
-1. **Lint & Test**: Ruff linting across backend & frontend, and Pytest unit test execution.
+1. **Lint & Test**: Ruff linting & Pytest test execution on Python backend + Node build validation for React frontend SPA.
 2. **Build & Push**: Docker Buildx builds `linux/amd64` images with layer caching and pushes to Amazon ECR tagged with Git SHA and `latest`.
 3. **Deploy to EKS**: Configures AWS credentials, updates Kubernetes manifests dynamically with `kustomize edit set image`, applies manifests to AWS EKS, and verifies zero-downtime rollouts (`kubectl rollout status`).
 
 ### Required GitHub Repository Secrets:
 - `AWS_ACCESS_KEY_ID`: IAM Access Key ID for deployment.
 - `AWS_SECRET_ACCESS_KEY`: IAM Secret Access Key.
-
-
