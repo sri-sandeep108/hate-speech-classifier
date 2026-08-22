@@ -16,7 +16,8 @@ The DevOps layers are constructed incrementally in discrete, explainable steps:
 3. [x] **Layer 3: Kubernetes (Local `kind` manifests)** — Deployments, Services, ConfigMaps, Probes, Resource constraints.
 4. [x] **Layer 4: Observability (Prometheus + Grafana)** — `kube-prometheus-stack`, custom FastAPI & spaCy metrics, auto-imported Grafana dashboard.
 5. [x] **Layer 5: Terraform (AWS / EKS)** — Complete VPC, EKS cluster (v1.31), Managed Node Groups, IAM + OIDC, ECR repositories with lifecycle policies.
-6. [ ] **Layer 6: CI/CD (GitHub Actions)** — **UP NEXT**: Automated test, build, push to ECR, and deployment pipeline to EKS.
+6. [x] **Layer 6: CI/CD (GitHub Actions)** — Fully automated lint/test, multi-platform container build, Amazon ECR push, and AWS EKS rollout pipeline.
+
 
 > **Sequencing Rationale**:
 > - Monitoring was completed locally on `kind` *before* cloud infrastructure to rapidly validate observability with zero cloud spend and no retrofitting overhead.
@@ -174,9 +175,15 @@ kubectl get nodes
 
 ---
 
-## 7. Next Steps: Layer 6 (CI/CD on GitHub Actions)
+## 7. CI/CD Pipeline (GitHub Actions)
 
-With Terraform code in place and validated:
-- Automate linting, testing, and container build/push to Amazon ECR.
-- Automate Helm and Kubernetes deployments onto AWS EKS.
+The repository includes a production-grade CI/CD pipeline in `.github/workflows/ci-cd.yml`:
+1. **Lint & Test**: Ruff linting across backend & frontend, and Pytest unit test execution.
+2. **Build & Push**: Docker Buildx builds `linux/amd64` images with layer caching and pushes to Amazon ECR tagged with Git SHA and `latest`.
+3. **Deploy to EKS**: Configures AWS credentials, updates Kubernetes manifests dynamically with `kustomize edit set image`, applies manifests to AWS EKS, and verifies zero-downtime rollouts (`kubectl rollout status`).
+
+### Required GitHub Repository Secrets:
+- `AWS_ACCESS_KEY_ID`: IAM Access Key ID for deployment.
+- `AWS_SECRET_ACCESS_KEY`: IAM Secret Access Key.
+
 

@@ -3,7 +3,12 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.model import get_nlp, predict
 from app.model_info import MODEL_INFO
-from app.schemas import HealthResponse, ModelInfoResponse, PredictRequest, PredictResponse
+from app.schemas import (
+    HealthResponse,
+    ModelInfoResponse,
+    PredictRequest,
+    PredictResponse,
+)
 
 app = FastAPI(
     title="Hate Speech Classifier API",
@@ -19,9 +24,10 @@ def health():
     try:
         get_nlp()
         model_loaded = True
-    except Exception:
+    except Exception:  # noqa: BLE001
         model_loaded = False
     return HealthResponse(status="ok", model_loaded=model_loaded)
+
 
 
 @app.get("/info", response_model=ModelInfoResponse)

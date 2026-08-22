@@ -1,4 +1,5 @@
 import os
+import time
 
 import requests
 import streamlit as st
@@ -13,7 +14,7 @@ EXAMPLES = [
 ]
 
 st.set_page_config(
-    page_title="Hate Speech Classifier",
+    page_title="Hate Speech Classifier | MLOps on AWS EKS",
     page_icon="🛡️",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -59,6 +60,15 @@ st.markdown(
         font-size: 0.78rem;
         font-weight: 600;
     }
+    .badge-cloud {
+        background: rgba(124, 92, 252, 0.15);
+        border: 1px solid rgba(124, 92, 252, 0.4);
+        color: #C4B5FD;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
     div[data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 14px !important;
         margin-bottom: 1.2rem;
@@ -97,14 +107,15 @@ st.markdown(
     """
     <div class="hero">
         <h1>🛡️ Hate Speech Classifier</h1>
-        <p>A DistilBERT-based text classifier that flags hateful content in real time,
-        served through a FastAPI backend.</p>
+        <p>A DistilBERT-based NLP model deployed as a production-grade, observable microservice on AWS EKS.</p>
         <div class="badge-row">
-            <span class="badge">Python</span>
             <span class="badge">FastAPI</span>
-            <span class="badge">spaCy</span>
             <span class="badge">DistilBERT</span>
             <span class="badge">Streamlit</span>
+            <span class="badge-cloud">AWS EKS</span>
+            <span class="badge-cloud">Terraform</span>
+            <span class="badge-cloud">GitHub Actions</span>
+            <span class="badge-cloud">Prometheus + Grafana</span>
         </div>
     </div>
     """,
@@ -120,7 +131,7 @@ def fetch_info():
 
 
 with st.container(border=True):
-    st.markdown("### About this project")
+    st.markdown("### 📋 About this project")
     try:
         info = fetch_info()
         st.write(info["description"])
@@ -140,7 +151,7 @@ with st.container(border=True):
 
 if info:
     with st.container(border=True):
-        st.markdown("### Model performance")
+        st.markdown("### 📊 Model Benchmark Performance")
         st.caption("Measured on a held-out test split via `spacy benchmark accuracy`.")
         b = info["benchmark"]
         c1, c2, c3, c4 = st.columns(4)
@@ -150,7 +161,7 @@ if info:
         c4.metric("Not-Hateful F1", f"{b['not_hateful_f1']:.2f}")
 
 try_it = st.container(border=True)
-try_it.markdown("### Try it")
+try_it.markdown("### 💬 Live Inference")
 
 if "text_input" not in st.session_state:
     st.session_state.text_input = ""
@@ -161,27 +172,46 @@ def _set_example(example):
 
 
 with try_it:
-    st.caption("Or try an example:")
+    st.caption("Try an example prompt:")
     cols = st.columns(len(EXAMPLES))
     for col, example in zip(cols, EXAMPLES):
-        short_label = (example[:22] + "…") if len(example) > 22 else example
-        col.button(short_label, key=f"ex_{example}", on_click=_set_example, args=(example,), use_container_width=True)
+        short_label = (example[:20] + "…") if len(example) > 20 else example
+        col.button(
+            short_label,
+            key=f"ex_{example}",
+            on_click=_set_example,
+            args=(example,),
+            use_container_width=True,
+        )
 
     text = st.text_area(
         "Enter text to classify",
         height=120,
-        placeholder="Type something...",
+        placeholder="Type a sentence to evaluate for hate speech...",
         key="text_input",
         label_visibility="collapsed",
     )
 
-    classify_clicked = st.button("Classify", type="primary", disabled=not text.strip(), use_container_width=True)
+    col_btn1, col_btn2 = st.columns([4, 1])
+    classify_clicked = col_btn1.button(
+        "Run Classifier",
+        type="primary",
+        disabled=not text.strip(),
+        use_container_width=True,
+    )
+    clear_clicked = col_btn2.button("Clear", use_container_width=True)
+
+    if clear_clicked:
+        st.session_state.text_input = ""
+        st.rerun()
 
     if classify_clicked:
-        with st.spinner("Calling API..."):
+        with st.spinner("Processing through DistilBERT transformer pipeline..."):
+            t_start = time.perf_counter()
             try:
                 response = requests.post(f"{API_URL}/predict", json={"text": text}, timeout=30)
                 response.raise_for_status()
+                duration_ms = (time.perf_counter() - t_start) * 1000
             except requests.RequestException as exc:
                 st.error(f"Request to backend failed: {exc}")
             else:
@@ -190,16 +220,18 @@ with try_it:
                 css_class = "result-hateful" if label == "Hateful" else "result-not-hateful"
                 icon = "⚠️" if label == "Hateful" else "✅"
                 st.markdown(
-                    f'<div class="{css_class}">{icon} Prediction: {label}</div>',
+                    f'<div class="{css_class}">{icon} Classification: <strong>{label}</strong> '
+                    f'<span style="float: right; font-size: 0.85rem; font-weight: normal; opacity: 0.85;">'
+                    f'Latency: {duration_ms:.1f}ms</span></div>',
                     unsafe_allow_html=True,
                 )
                 st.write("")
-                st.caption(f"Hateful score: {result['hateful_score']:.3f}")
+                st.caption(f"Hateful Confidence: {result['hateful_score']:.1%}")
                 st.progress(result["hateful_score"])
-                st.caption(f"Not-Hateful score: {result['not_hateful_score']:.3f}")
+                st.caption(f"Not-Hateful Confidence: {result['not_hateful_score']:.1%}")
                 st.progress(result["not_hateful_score"])
 
-with st.expander("Backend status"):
+with st.expander("🛠️ Live Backend Health & Metrics"):
     try:
         health = requests.get(f"{API_URL}/health", timeout=5).json()
         st.json(health)
@@ -207,8 +239,8 @@ with st.expander("Backend status"):
         st.warning(f"Could not reach backend at {API_URL}: {exc}")
 
 st.markdown(
-    '<p class="footnote">Part of a larger DevOps portfolio project — '
-    "containerized, deployed to Kubernetes via Terraform, CI/CD with GitHub Actions, "
-    "monitored with Prometheus &amp; Grafana.</p>",
+    '<p class="footnote">Production MLOps Project &bull; DistilBERT NLP &bull; '
+    "FastAPI &amp; Streamlit &bull; AWS EKS &bull; Terraform &bull; GitHub Actions CI/CD &bull; "
+    "Prometheus &amp; Grafana</p>",
     unsafe_allow_html=True,
 )
