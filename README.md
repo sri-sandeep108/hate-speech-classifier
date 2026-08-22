@@ -76,6 +76,8 @@ hate-speech-classifier/
 └── docker-compose.yml             # Local multi-container development environment
 ```
 
+![Interactive 6-Layer Architecture UI](assets/screenshots/architecture-ui.png)
+
 ---
 
 ## 💬 Live Inference Studio
@@ -91,6 +93,8 @@ The interactive studio allows real-time sentiment and hate speech analysis with:
 ---
 
 ## 📄 Academic Research & 5-Model Empirical Benchmarks
+
+![MSc Research Benchmarks UI](assets/screenshots/dissertation-benchmarks.png)
 
 Authored by **Sri Sandeep Sakthivel** (*MSc in Data Analytics*, Student ID: `20065749`), the underlying research evaluated 5 NLP architectures on an aggregated dataset (Kaggle & GitHub) to investigate the trade-offs between parameter scale, classification accuracy, and serving latency.
 
